@@ -21,7 +21,7 @@ Score <- function(start_positions, dna_set, motif_length) {
 
   # Validate indexing
   for (i in seq_len(n_seq)) {
-    max_start <- width(dna_set[[i]]) - motif_length + 1
+    max_start <- length(dna_set[[i]]) - motif_length + 1
     if (start_positions[i] > max_start || start_positions[i] < 1) {
       stop(paste("Invalid start position for sequence", i, 
                  "- valid range is 1 to", max_start))
@@ -59,10 +59,6 @@ dna <- readDNAStringSet("/Users/lenapavlikova/Library/Mobile Documents/com~apple
 start_positions <- rep(1, length(dna)) 
 Score(start_positions, dna, motif_length)
 
-
-
-
-
  
 ### Task 2
 * In R, create function `NextLeaf()` according to the following pseudocode.
@@ -84,6 +80,29 @@ NextLeaf(s, t, k)
 5     s[i] ← 1
 6   return s
 ```
+
+NextLeaf <- function(s, t, k) {
+  for (i in seq(t, 1)) {
+    if (s[i] < k) {
+      s[i] <- s[i] + 1
+      return(s)
+    }
+    else {
+      s[i] <- 1
+      return(s)
+    }
+  }
+  return(s)
+}
+
+
+# Example
+t <- 4
+k <- 5
+s <- c(1, 1, 1, 1)
+
+NextLeaf(s, t, k)  # returns c(1,1,1,2)
+
 
 ### Task 3
 * In R, create a function `BFMotifSearch()` according to the following pseudocode.
@@ -109,6 +128,52 @@ BFMotifSearch(DNA, t, n, l)
 8       if s = (1, 1, . . . , 1)
 9         return bestMotif
 ```
+
+BFMotifSearch <- function(DNA, t, n, l) {
+  
+  # Maximum valid start position for a motif in a sequence
+  k <- n - l + 1
+  
+  # Initialize starting positions
+  s <- rep(1, t)
+  
+  # Initialize best score and motif
+  bestScore <- Score(s, DNA, l)
+  bestMotif <- s
+  
+  repeat {
+    # Move to next leaf
+    s <- NextLeaf(s, t, k)
+    
+    # Compute score for current positions
+    currentScore <- Score(s, DNA, l)
+    
+    # Update best if needed
+    if (currentScore > bestScore) {
+      bestScore <- currentScore
+      bestMotif <- s
+    }
+    
+    # Stop if we wrapped around to all ones
+    if (all(s == rep(1, t))) {
+      break
+    }
+  }
+  
+  return(bestMotif)
+}
+
+
+# Load sequences
+DNA <- readDNAStringSet("/Users/lenapavlikova/Library/Mobile Documents/com~apple~CloudDocs/ŠKOLA/7. semestr/MPA-PRG/exercise_08/exercise_07/seq_motif.fasta")
+t <- length(DNA)
+n <- width(DNA)[1]  # assuming all sequences have same length
+l <- 6              # motif length
+
+# Run brute-force search
+bestMotif <- BFMotifSearch(DNA, t, n, l)
+print(bestMotif)
+
 
 ## The Branch-and-Bound Motif Search
 ### Task 4
@@ -137,6 +202,34 @@ NextVertex(s, i, t, k)
 9   return (s, 0)
 ```
 
+NextVertex <- function(s, i, t, k) {
+  # Case 1: move down the tree
+  if (i < t) {
+    s[i + 1] <- 1
+    return(list(s = s, i = i + 1))
+  }
+  else {
+    # Case 2: move to next available vertex
+    for (j in t:1) {
+      if (s[j] < k) {
+        s[j] <- s[j] + 1
+        return(list(s = s, i = j))
+      }
+    }
+    # Case 3: no more vertices
+    return(list(s = s, i = 0))
+  }
+}
+
+t <- 4
+k <- 5
+s <- c(1, 1, 1, 1)
+i <- 1
+
+res <- NextVertex(s, i, t, k)
+res$s  # updated positions
+res$i  # updated level
+
 ### Task 5
 * In R, create a function `ByPass()` according to the following pseudocode.
 
@@ -158,6 +251,28 @@ ByPass(s, i, t, k)
 4       return (s, j)
 5   return (s, 0)
 ```
+ByPass <- function(s, i, t, k) {
+  # Loop from current level down to 1
+  for (j in i:1) {
+    if (s[j] < k) {
+      s[j] <- s[j] + 1
+      return(list(s = s, i = j))
+    }
+  }
+  
+  # No more positions to increment
+  return(list(s = s, i = 0))
+}
+
+t <- 4
+k <- 5
+s <- c(1, 3, 2, 5)
+i <- 4
+
+res <- ByPass(s, i, t, k)
+res$s  # updated positions after bypass
+res$i  # new level
+
 
 ### Task 6
 * In R, create a function `BBMotifSearch()` according to the following pseudocode.
@@ -191,6 +306,77 @@ BBMotifSearch(DNA, t, n, l)
 15      (s, i) ← NextVertex(s, i, t, n − l + 1)
 16  return bestMotif
 ```
+# updated function Score (uprav později, až to bude fungovat :))
+ScorePartial <- function(start_positions, i, dna_set, motif_length) {
+  # Compute score only for first i sequences
+  n_seq <- i
+  motifs <- character(n_seq)
+  
+  for (j in seq_len(n_seq)) {
+    motifs[j] <- as.character(subseq(dna_set[j],
+                                     start = start_positions[j],
+                                     width = motif_length))
+  }
+  
+  bases <- c("A", "C", "G", "T")
+  pfm <- matrix(0, nrow = 4, ncol = motif_length,
+                dimnames = list(bases, 1:motif_length))
+  
+  for (j in seq_len(n_seq)) {
+    for (k in seq_len(motif_length)) {
+      base <- substr(motifs[j], k, k)
+      pfm[base, k] <- pfm[base, k] + 1
+    }
+  }
+  
+  score <- sum(apply(pfm, 2, max))
+  return(score)
+}
+
+# exact function
+BBMotifSearch <- function(DNA, t, n, l) {
+  k <- n - l + 1       # max start position
+  s <- rep(1, t)       # starting positions
+  bestScore <- 0       # inicialization
+  bestMotif <- s       # output from function bestMotif
+  i <- 1               # current level
+  
+  while (i > 0) {
+    if (i < t) {
+      # optimistic score: current + maximum possible for remaining sequences
+      optimisticScore <- ScorePartial(s, i, DNA, l) + (t - i) * l
+      if (optimisticScore < bestScore) {
+        res <- ByPass(s, i, t, k)
+        s <- res$s
+        i <- res$i
+      } else {
+        res <- NextVertex(s, i, t, k)
+        s <- res$s
+        i <- res$i
+      }
+    } else {
+      # full motif score
+      currentScore <- ScorePartial(s, t, DNA, l)
+      if (currentScore > bestScore) {
+        bestScore <- currentScore
+        bestMotif <- s
+      }
+      res <- NextVertex(s, i, t, k)
+      s <- res$s
+      i <- res$i
+    }
+  }
+  
+  return(bestMotif)
+}
+
+DNA <- readDNAStringSet("/Users/lenapavlikova/Library/Mobile Documents/com~apple~CloudDocs/ŠKOLA/7. semestr/MPA-PRG/exercise_08/exercise_07/seq_motif.fasta")
+t <- length(DNA)
+n <- width(DNA)[1]  # assuming all sequences same length
+l <- 6              # motif length
+
+bestMotif <- BBMotifSearch(DNA, t, n, l)
+print(bestMotif)
 
 
 <details>
