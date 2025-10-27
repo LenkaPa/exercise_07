@@ -11,6 +11,58 @@
    
 * Output:
     * The score for the consensus string.
+
+#import
+library(Biostrings)
+
+#function
+Score <- function(start_positions, dna_set, motif_length) {
+  n_seq <- length(dna_set)
+
+  # Validate indexing
+  for (i in seq_len(n_seq)) {
+    max_start <- width(dna_set[[i]]) - motif_length + 1
+    if (start_positions[i] > max_start || start_positions[i] < 1) {
+      stop(paste("Invalid start position for sequence", i, 
+                 "- valid range is 1 to", max_start))
+    }
+  }
+
+  motifs <- character(n_seq)
+  for (i in seq_len(n_seq)) {
+    motifs[i] <- as.character(subseq(dna_set[[i]],
+                                     start = start_positions[i],
+                                     width = motif_length))
+  }
+
+  bases <- c("A", "C", "G", "T")
+  pfm <- matrix(0, nrow=4, ncol=motif_length,
+                dimnames=list(bases, 1:motif_length))
+
+  for (i in seq_len(n_seq)) {
+    for (j in seq_len(motif_length)) {
+      base <- substr(motifs[i], j, j)
+      pfm[base, j] <- pfm[base, j] + 1
+    }
+  }
+
+  score <- sum(apply(pfm, 2, max))
+  return(score)
+}
+
+
+#example
+motif_length <- 6
+dna <- readDNAStringSet("/Users/lenapavlikova/Library/Mobile Documents/com~apple~CloudDocs/ŠKOLA/7. semestr/MPA-PRG/exercise_08/exercise_07/seq_score.fasta")
+
+# Make sure these are within allowed range for your sequences!
+start_positions <- rep(1, length(dna)) 
+Score(start_positions, dna, motif_length)
+
+
+
+
+
  
 ### Task 2
 * In R, create function `NextLeaf()` according to the following pseudocode.
